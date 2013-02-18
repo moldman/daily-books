@@ -1,0 +1,92 @@
+<?php
+/**
+ * Implements hook_perm().
+ */
+function infoisbn_permission() {
+  return array('view book data' => array(
+      'title' => t('View fetched data'),
+      'description' => t('Allow user to view data.'),
+    ),
+  );
+}
+function infoisbn_getDataByTitle($title) {
+  $url = str_replace('%titlus',urlencode($title),'http://isbndb.com/api/books.xml?access_key=MMJU9EDW&results=details&index1=title&value1=%titlus');
+      $xml = file_get_contents($url);
+      $p = xml_parser_create();
+      xml_parse_into_struct($p, $xml, $vals, $index);
+      $vals['success'] = $vals['1']['attributes']['TOTAL_RESULTS'];
+      xml_parser_free($p);
+
+  return $vals;
+}
+function infoisbn_block_info() {
+  $blocks['book_info'] = array(
+    'info' => t('Book info fron isbndb'), 
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  
+  return $blocks;
+}
+function isBookPage(){
+  $match = false;
+
+  $types = array('book');
+
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $nid = arg(1);
+    $node = node_load($nid);
+    $type = $node->type; 
+    $match |= in_array($type, $types);
+  }  
+
+return $match;
+}
+function infoisbn_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'book_info':
+      $block['subject'] = t('Book info fron isbndb');
+      $block['content'] = lookUpBookData();
+      break;
+  }
+  return $block;
+}
+function lookUpBookData(){
+
+if(isBookPage()){
+$nid = arg(1);
+$node = node_load($nid);
+$i=0;
+$vals=infoisbn_getDataByTitle($node->title);
+      foreach ($vals as $ix => $val) {
+        switch ($val['tag']) {
+          case 'TITLE' :
+            if (isset($val['value'])) {
+              $res[$i]['title'] = $val['value'];
+            }
+            break;
+          
+          case 'AUTHORSTEXT' :
+            if (isset($val['value'])) {
+              $res[$i]['author'] = $val['value'];
+              $i++;
+            }
+            break;
+  
+          case 'BOOKDATA' :
+            if (isset($val['attributes']['ISBN'])) {
+              $res[$i]['isbn'] = $val['attributes']['ISBN'];
+            }
+            if (isset($val['attributes']['ISBN13'])) {
+              $res[$i]['isbn13'] = $val['attributes']['ISBN13'];
+            }
+        }
+      }
+	  $return=t('Found in Online db:').count($res);
+	  foreach($res as $book){
+	  $return.='<br><b>'.$book['title'].'</b> by '.$book['author'].((isset($book['isbn']))? ' ISBN:'.$book['isbn']:'').'';
+	  }
+	  return $return;
+}
+}

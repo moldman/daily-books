@@ -1,0 +1,5 @@
+name = Info ISBN TEST MODULE
+description = Get data about book
+core = 7.x
+project = "TEST MODULE"
+
